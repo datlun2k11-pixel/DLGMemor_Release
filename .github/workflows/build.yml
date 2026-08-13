@@ -16,9 +16,7 @@ jobs:
         PROJ_FILE="DLGMemor/DLGMemor/DLGMemor.xcodeproj/project.pbxproj"
         if [ -f "$PROJ_FILE" ]; then
           echo "=== PATCHING PROJECT FILE ==="
-          # Nâng iOS Deployment Target lên 12.0 để tương thích Xcode mới
           sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = 12.0/g' "$PROJ_FILE"
-          # Tắt Bitcode
           sed -i '' 's/ENABLE_BITCODE = YES/ENABLE_BITCODE = NO/g' "$PROJ_FILE"
         fi
 
@@ -28,30 +26,42 @@ jobs:
                    -scheme DLGMemor \
                    -configuration Release \
                    -sdk iphoneos \
+                   -derivedDataPath build \
                    ARCHS="arm64" \
                    ONLY_ACTIVE_ARCH=NO \
-                   BUILD_DIR=build \
                    CODE_SIGNING_ALLOWED=NO \
                    CODE_SIGNING_REQUIRED=NO \
                    CODE_SIGN_IDENTITY="" \
                    AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-    - name: Find & Zip Output Framework/Dylib
+    - name: Find & Zip Output Framework
       run: |
-        mkdir -p output
-        cd build/Release-iphoneos
+        mkdir -p output_zip
         
-        # Tìm file .framework hoặc .dylib vừa build ra
-        if [ -d "DLGMemor.framework" ]; then
-          zip -r "../../output/DLGMemor.zip" DLGMemor.framework
+        # Tìm file DLGMemor.framework hoặc dylib ở bất kì đâu trong thư mục build
+        FRAMEWORK_PATH=$(find build -name "DLGMemor.framework" -type d | head -n 1)
+        
+        if [ -n "$FRAMEWORK_PATH" ]; then
+          echo "Found Framework at: $FRAMEWORK_PATH"
+          PARENT_DIR=$(dirname "$FRAMEWORK_PATH")
+          FOLDER_NAME=$(basename "$FRAMEWORK_PATH")
+          cd "$PARENT_DIR"
+          zip -r "$GITHUB_WORKSPACE/output_zip/DLGMemor.zip" "$FOLDER_NAME"
         else
-          find . -name "*.dylib" -exec cp {} ../../output/ \;
-          cd ../../output
-          zip -r DLGMemor.zip *.dylib || echo "Nothing to zip"
+          echo "Framework not found, searching for dylib..."
+          DYLIB_PATH=$(find build -name "*.dylib" | head -n 1)
+          if [ -n "$DYLIB_PATH" ]; then
+            PARENT_DIR=$(dirname "$DYLIB_PATH")
+            cd "$PARENT_DIR"
+            zip -r "$GITHUB_WORKSPACE/output_zip/DLGMemor.zip" *.dylib
+          else
+            echo "❌ Đéo tìm thấy file output nào luôn bro!"
+            exit 1
+          fi
         fi
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: DLGMemor-Build
-        path: output/DLGMemor.zip
+        path: output_zip/DLGMemor.zip
