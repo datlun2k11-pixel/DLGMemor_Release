@@ -1,4 +1,4 @@
-name: Build DLGMemor
+name: Build DLGMemor Framework
 
 on:
   workflow_dispatch:
@@ -11,25 +11,47 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Build Framework via xcodeproj
+    - name: Patch Old Project Settings for Modern Xcode
+      run: |
+        PROJ_FILE="DLGMemor/DLGMemor/DLGMemor.xcodeproj/project.pbxproj"
+        if [ -f "$PROJ_FILE" ]; then
+          echo "=== PATCHING PROJECT FILE ==="
+          # Nâng iOS Deployment Target lên 12.0 để tương thích Xcode mới
+          sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = [0-9.]*/IPHONEOS_DEPLOYMENT_TARGET = 12.0/g' "$PROJ_FILE"
+          # Tắt Bitcode
+          sed -i '' 's/ENABLE_BITCODE = YES/ENABLE_BITCODE = NO/g' "$PROJ_FILE"
+        fi
+
+    - name: Build DLGMemor Framework
       run: |
         xcodebuild -project DLGMemor/DLGMemor/DLGMemor.xcodeproj \
                    -scheme DLGMemor \
                    -configuration Release \
                    -sdk iphoneos \
+                   ARCHS="arm64" \
+                   ONLY_ACTIVE_ARCH=NO \
                    BUILD_DIR=build \
                    CODE_SIGNING_ALLOWED=NO \
                    CODE_SIGNING_REQUIRED=NO \
                    CODE_SIGN_IDENTITY="" \
                    AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-    - name: Zip Build Output
+    - name: Find & Zip Output Framework/Dylib
       run: |
+        mkdir -p output
         cd build/Release-iphoneos
-        zip -r DLGMemor.zip DLGMemor.framework || zip -r DLGMemor.zip *.dylib || echo "No framework found"
+        
+        # Tìm file .framework hoặc .dylib vừa build ra
+        if [ -d "DLGMemor.framework" ]; then
+          zip -r "../../output/DLGMemor.zip" DLGMemor.framework
+        else
+          find . -name "*.dylib" -exec cp {} ../../output/ \;
+          cd ../../output
+          zip -r DLGMemor.zip *.dylib || echo "Nothing to zip"
+        fi
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: DLGMemor-Build
-        path: build/Release-iphoneos/DLGMemor.zip
+        path: output/DLGMemor.zip
