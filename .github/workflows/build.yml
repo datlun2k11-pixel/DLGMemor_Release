@@ -11,29 +11,14 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Debug - List all files
+    - name: Build Framework
       run: |
-        echo "=== DANH SÁCH FILE TRONG REPO ==="
-        ls -R
-
-    - name: Find Project and Build
-      run: |
-        # Tự tìm file .xcodeproj hoặc .xcworkspace
-        PROJ=$(find . -maxdepth 2 -name "*.xcodeproj" -o -name "*.xcworkspace" | head -n 1)
-        
-        if [ -z "$PROJ" ]; then
-          echo "❌ Đéo tìm thấy file project nào hết bro ơi!"
-          exit 1
-        fi
-        
-        echo "FOUND PROJECT: $PROJ"
-        
-        # Kiểm tra là workspace hay xcodeproj để build
-        if [[ "$PROJ" == *.xcworkspace ]]; then
-          xcodebuild -workspace "$PROJ" -scheme DLGMemor -configuration Release -sdk iphoneos BUILD_DIR=build CODE_SIGNING_ALLOWED=NO
-        else
-          xcodebuild -project "$PROJ" -scheme DLGMemor -configuration Release -sdk iphoneos BUILD_DIR=build CODE_SIGNING_ALLOWED=NO
-        fi
+        xcodebuild -workspace DLGMemor/DLGMemor.xcworkspace \
+                   -scheme DLGMemor \
+                   -configuration Release \
+                   -sdk iphoneos \
+                   BUILD_DIR=build \
+                   CODE_SIGNING_ALLOWED=NO
 
     - name: Zip Build Output
       run: |
